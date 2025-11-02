@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useState, useRef } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { usePrivy } from "@privy-io/react-auth"
 import { Sidebar } from "@/components/sidebar"
 import { Header } from "@/components/header"
@@ -23,12 +23,15 @@ import { toast } from "sonner"
 
 export default function SignedDocumentsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { authenticated, ready, getAccessToken } = usePrivy()
   const { role, loading: roleLoading } = useRoles()
   const { walletAddress, loading: walletLoading } = useUserWallet()
   const { documents: apiDocuments, loading: documentsLoading, loadDocuments } = useDocuments()
   const [documents, setDocuments] = useState<DocumentData[]>([])
   const [loading, setLoading] = useState(true)
+  const [highlightedDocumentId, setHighlightedDocumentId] = useState<string | null>(null)
+  const documentRefs = useRef<Record<string, HTMLDivElement>>({})
 
   // Pre-cargar access token
   useEffect(() => {
@@ -81,6 +84,28 @@ export default function SignedDocumentsPage() {
 
     setDocuments(filtered.sort((a, b) => b.createdAt - a.createdAt))
   }, [apiDocuments, walletAddress, role])
+
+  // Manejar parámetro documentId de la URL (desde notificaciones)
+  useEffect(() => {
+    const documentId = searchParams.get("documentId")
+    if (documentId && documents.length > 0) {
+      setHighlightedDocumentId(documentId)
+      
+      // Scroll al documento después de un breve delay para que se renderice
+      setTimeout(() => {
+        const element = documentRefs.current[documentId]
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "center" })
+          // Remover highlight después de 3 segundos
+          setTimeout(() => {
+            setHighlightedDocumentId(null)
+            // Limpiar parámetro de URL sin recargar la página
+            router.replace("/documents/signed", { scroll: false })
+          }, 3000)
+        }
+      }, 100)
+    }
+  }, [searchParams, documents, router])
 
   // Redirigir al login si no está autenticado
   useEffect(() => {
@@ -186,8 +211,18 @@ export default function SignedDocumentsPage() {
                   </p>
                 </Card>
               ) : (
-                documents.map((doc) => (
-                  <Card key={doc.id} className="p-4 hover:border-primary transition-colors">
+                documents.map((doc) => {
+                  const isHighlighted = highlightedDocumentId === doc.id
+                  return (
+                  <Card 
+                    key={doc.id} 
+                    ref={(el) => {
+                      if (el) documentRefs.current[doc.id] = el
+                    }}
+                    className={`p-4 hover:bg-accent/50 hover:border-accent transition-all ${
+                      isHighlighted ? "bg-accent/30 border-accent border-2 shadow-lg ring-2 ring-accent/50" : ""
+                    }`}
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4 flex-1">
                         <div className="p-3 rounded-lg bg-green-500/10">
@@ -284,7 +319,8 @@ export default function SignedDocumentsPage() {
                       </div>
                     </div>
                   </Card>
-                ))
+                  )
+                })
               )}
             </div>
           </div>

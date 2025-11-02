@@ -167,6 +167,24 @@ export function useVerificaContract() {
           throw new Error("No hay destinatarios válidos")
         }
 
+        // Verificar si el documento ya existe antes de intentar registrarlo
+        try {
+          const [exists] = await contract.verifyDocument(hashBytes32)
+          if (exists) {
+            console.log("[useVerificaContract] ⚠️ El documento ya existe en blockchain")
+            // Retornar un objeto indicando que ya existe (sin txHash ya que no hubo transacción nueva)
+            return {
+              success: true,
+              alreadyExists: true,
+              txHash: null, // No hay nueva transacción
+              message: "El documento ya está registrado en blockchain",
+            }
+          }
+        } catch (verifyError) {
+          // Si hay error verificando, continuar con el registro (puede que el documento no exista)
+          console.log("[useVerificaContract] No se pudo verificar existencia, continuando con registro...")
+        }
+
         console.log("[useVerificaContract] Registrando documento:", {
           hash: hashBytes32,
           ipfsCid,
@@ -190,10 +208,23 @@ export function useVerificaContract() {
 
         return {
           success: true,
+          alreadyExists: false,
           txHash: tx.hash,
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Error registrando documento"
+        
+        // Detectar error específico de "Document already exists"
+        if (errorMessage.includes("Document already exists") || errorMessage.includes("already exists")) {
+          console.log("[useVerificaContract] ⚠️ Documento ya existe (detectado en catch)")
+          return {
+            success: true,
+            alreadyExists: true,
+            txHash: null,
+            message: "El documento ya está registrado en blockchain",
+          }
+        }
+        
         console.error("[useVerificaContract] Error:", err)
         throw new Error(errorMessage)
       } finally {

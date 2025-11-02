@@ -252,31 +252,43 @@ export default function CreateDocumentPage() {
             recipients, // NUEVO: Pasar destinatarios
             issuedAt // Pasar timestamp explícitamente
           )
-          blockchainTxHash = result.txHash
           
-          // Obtener chainId actual del provider o del hook
-          if (chainId) {
-            blockchainChainId = chainId
+          // Si el documento ya existía, no hay txHash nuevo pero es exitoso
+          if (result.alreadyExists) {
+            console.log("[Create] ⚠️ Documento ya existe en blockchain:", {
+              message: result.message,
+            })
+            toast.info(result.message || "El documento ya está registrado en blockchain")
+            // No actualizar blockchainTxHash ni blockchainChainId ya que no hubo nueva transacción
           } else {
-            // Fallback: obtener del provider directamente
-            try {
-              const provider = await getEthereumProvider()
-              if (provider) {
-                const ethersProvider = new BrowserProvider(provider)
-                const network = await ethersProvider.getNetwork()
-                blockchainChainId = Number(network.chainId)
+            blockchainTxHash = result.txHash || undefined
+            
+            // Obtener chainId actual del provider o del hook
+            if (chainId) {
+              blockchainChainId = chainId
+            } else {
+              // Fallback: obtener del provider directamente
+              try {
+                const provider = await getEthereumProvider()
+                if (provider) {
+                  const ethersProvider = new BrowserProvider(provider)
+                  const network = await ethersProvider.getNetwork()
+                  blockchainChainId = Number(network.chainId)
+                }
+              } catch (providerError) {
+                console.warn("[Create] Error obteniendo chainId del provider:", providerError)
               }
-            } catch (providerError) {
-              console.warn("[Create] Error obteniendo chainId del provider:", providerError)
+            }
+            
+            console.log("[Create] ✅ Documento registrado en blockchain:", {
+              txHash: blockchainTxHash,
+              chainId: blockchainChainId,
+            })
+            
+            if (blockchainTxHash) {
+              toast.success(`Documento registrado en blockchain: ${blockchainTxHash.slice(0, 10)}...`)
             }
           }
-          
-          console.log("[Create] ✅ Documento registrado en blockchain:", {
-            txHash: blockchainTxHash,
-            chainId: blockchainChainId,
-          })
-          
-          toast.success(`Documento registrado en blockchain: ${blockchainTxHash.slice(0, 10)}...`)
         } catch (blockchainError: any) {
           // No bloquear el flujo si falla blockchain, pero mostrar el error
           const errorMessage = blockchainError?.message || blockchainError?.toString() || "Error desconocido"

@@ -45,14 +45,19 @@ export function Header() {
     }
   }
   
-  const handleNotificationClick = (notificationId: string, documentId?: string) => {
+  const handleNotificationClick = (notificationId: string, notificationType?: string, documentId?: string) => {
     markAsRead(notificationId)
     if (documentId) {
-      // Redirigir según el rol
-      if (role === "alumno") {
-        router.push(`/alumno/${documentId}`)
+      // Si es una notificación de documento firmado, redirigir a documentos firmados
+      if (notificationType === "document_signed") {
+        router.push(`/documents/signed?documentId=${documentId}`)
       } else {
-        router.push(`/documents/${documentId}`)
+        // Para otros tipos, redirigir según el rol
+        if (role === "alumno") {
+          router.push(`/alumno/${documentId}`)
+        } else {
+          router.push(`/documents/${documentId}`)
+        }
       }
       setShowNotifications(false)
     }
@@ -154,8 +159,8 @@ export function Header() {
                   {notifications.map((notification) => (
                     <DropdownMenuItem
                       key={notification.id}
-                      className={`py-3 cursor-pointer ${!notification.read ? "bg-muted/50" : ""}`}
-                      onClick={() => handleNotificationClick(notification.id, notification.documentId)}
+                      className={`py-3 cursor-pointer focus:bg-accent/50 hover:bg-accent/50 focus:text-accent-foreground ${!notification.read ? "bg-muted/50" : ""}`}
+                      onClick={() => handleNotificationClick(notification.id, notification.type, notification.documentId)}
                     >
                       <div className="flex flex-col gap-1 w-full">
                         <div className="flex items-start justify-between gap-2">
