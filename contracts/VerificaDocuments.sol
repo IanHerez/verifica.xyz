@@ -16,6 +16,7 @@ contract VerificaDocuments is Ownable, ReentrancyGuard {
         address creator; // Dirección del creador
         string title; // Título del documento
         string institution; // Institución emisora
+        address[] recipients; // Array de direcciones destinatarias (pueden firmar)
         uint256 createdAt; // Timestamp de creación
         uint256 issuedAt; // Timestamp de emisión
         bool verified; // Estado de verificación
@@ -31,9 +32,13 @@ contract VerificaDocuments is Ownable, ReentrancyGuard {
     // Storage
     mapping(bytes32 => Document) public documents; // Hash => Document
     mapping(bytes32 => DocumentSigner[]) public documentSigners; // Hash => Signers
-    mapping(address => bytes32[]) public userDocuments; // Usuario => Array de hashes
+    mapping(bytes32 => mapping(address => bool)) public isRecipient; // Hash => Address => Es destinatario
+    mapping(address => bytes32[]) public userDocuments; // Usuario => Array de hashes de documentos donde es destinatario o creador
     mapping(address => bool) public authorizedCreators; // Direcciones autorizadas para crear
     uint256 public documentCount; // Contador total de documentos
+
+    // Constantes
+    uint256 public constant MAX_RECIPIENTS = 50; // Límite máximo de destinatarios por documento
 
     // Events
     event DocumentRegistered(
@@ -41,6 +46,7 @@ contract VerificaDocuments is Ownable, ReentrancyGuard {
         address indexed creator,
         string title,
         string institution,
+        address[] recipients,
         uint256 createdAt
     );
 
@@ -87,12 +93,17 @@ contract VerificaDocuments is Ownable, ReentrancyGuard {
 
     /**
      * @notice Registra un nuevo documento en blockchain
-     * @dev El hash debe ser único y el creador debe estar autorizado
+     * @dev Según el flujo de arquitectura:
+     *      1. El archivo ya debe estar subido a IPFS (obtener CID primero)
+     *      2. El hash SHA-256 debe ser calculado antes de llamar a esta función
+     *      3. Guarda datos críticos: hash, CID, título, institución, destinatarios
+     *      4. Metadata adicional (description, category) NO se guarda aquí
      * @param _documentHash Hash SHA-256 del documento
-     * @param _ipfsCid CID de IPFS del archivo
+     * @param _ipfsCid CID de IPFS del archivo (debe obtenerse primero subiendo a IPFS)
      * @param _title Título del documento
      * @param _institution Institución emisora
-     * @param _issuedAt Timestamp de emisión
+     * @param _recipients Array de direcciones destinatarias (solo ellos pueden firmar)
+     * @param _issuedAt Timestamp de emisión (Unix timestamp en segundos)
      * @return true si se registró exitosamente
      */
     function registerDocument(
@@ -100,16 +111,33 @@ contract VerificaDocuments is Ownable, ReentrancyGuard {
         string memory _ipfsCid,
         string memory _title,
         string memory _institution,
+        address[] memory _recipients,
         uint256 _issuedAt
     ) public nonReentrant onlyAuthorized returns (bool) {
+        // Validaciones según flujo
         require(_documentHash != bytes32(0), "Invalid hash");
         require(bytes(_title).length > 0, "Title required");
         require(bytes(_ipfsCid).length > 0, "IPFS CID required");
         require(bytes(_institution).length > 0, "Institution required");
+        require(_recipients.length > 0, "At least one recipient required");
+        require(_recipients.length <= MAX_RECIPIENTS, "Too many recipients");
         require(
             documents[_documentHash].creator == address(0),
             "Document already exists"
         );
+        require(_issuedAt > 0, "Invalid issuedAt timestamp");
+
+        // Validar que no hay direcciones duplicadas o inválidas
+        for (uint256 i = 0; i < _recipients.length; i++) {
+            require(_recipients[i] != address(0), "Invalid recipient address");
+            // Verificar duplicados
+            for (uint256 j = i + 1; j < _recipients.length; j++) {
+                require(
+                    _recipients[i] != _recipients[j],
+                    "Duplicate recipient"
+                );
+            }
+        }
 
         documents[_documentHash] = Document({
             documentHash: _documentHash,
@@ -117,6 +145,7 @@ contract VerificaDocuments is Ownable, ReentrancyGuard {
             creator: msg.sender,
             title: _title,
             institution: _institution,
+            recipients: _recipients,
             createdAt: block.timestamp,
             issuedAt: _issuedAt,
             verified: true,
@@ -124,7 +153,16 @@ contract VerificaDocuments is Ownable, ReentrancyGuard {
             signers: new address[](0)
         });
 
+        // Indexar destinatarios para búsqueda rápida
+        for (uint256 i = 0; i < _recipients.length; i++) {
+            isRecipient[_documentHash][_recipients[i]] = true;
+            // Agregar a userDocuments para consulta rápida
+            userDocuments[_recipients[i]].push(_documentHash);
+        }
+
+        // También agregar al creador a userDocuments
         userDocuments[msg.sender].push(_documentHash);
+
         documentCount++;
 
         emit DocumentRegistered(
@@ -132,6 +170,7 @@ contract VerificaDocuments is Ownable, ReentrancyGuard {
             msg.sender,
             _title,
             _institution,
+            _recipients,
             block.timestamp
         );
 
@@ -140,6 +179,9 @@ contract VerificaDocuments is Ownable, ReentrancyGuard {
 
     /**
      * @notice Firma un documento existente
+     * @dev Solo los destinatarios pueden firmar un documento
+     *      El estado de firma también se actualiza en base de datos, pero
+     *      esta función garantiza inmutabilidad en blockchain
      * @param _documentHash Hash del documento a firmar
      * @return true si se firmó exitosamente
      */
@@ -153,6 +195,12 @@ contract VerificaDocuments is Ownable, ReentrancyGuard {
         returns (bool)
     {
         Document storage doc = documents[_documentHash];
+
+        // NUEVO: Verificar que el firmante sea destinatario
+        require(
+            isRecipient[_documentHash][msg.sender],
+            "Not authorized to sign - not a recipient"
+        );
 
         // Verificar que el firmante no haya firmado ya
         for (uint256 i = 0; i < doc.signers.length; i++) {
@@ -228,7 +276,7 @@ contract VerificaDocuments is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Obtiene todos los documentos de un usuario
+     * @notice Obtiene todos los documentos de un usuario (como creador o destinatario)
      * @param _user Dirección del usuario
      * @return Array de hashes de documentos
      */
@@ -236,6 +284,41 @@ contract VerificaDocuments is Ownable, ReentrancyGuard {
         address _user
     ) public view returns (bytes32[] memory) {
         return userDocuments[_user];
+    }
+
+    /**
+     * @notice Obtiene el CID de IPFS de un documento para recuperar el archivo
+     * @param _documentHash Hash del documento
+     * @return CID de IPFS del archivo
+     */
+    function getDocumentIpfsCid(
+        bytes32 _documentHash
+    ) public view documentExists(_documentHash) returns (string memory) {
+        return documents[_documentHash].ipfsCid;
+    }
+
+    /**
+     * @notice Verifica si un usuario puede firmar un documento (es destinatario)
+     * @param _documentHash Hash del documento
+     * @param _signer Dirección del firmante
+     * @return true si puede firmar
+     */
+    function canSignDocument(
+        bytes32 _documentHash,
+        address _signer
+    ) public view documentExists(_documentHash) returns (bool) {
+        return isRecipient[_documentHash][_signer];
+    }
+
+    /**
+     * @notice Obtiene todos los destinatarios de un documento
+     * @param _documentHash Hash del documento
+     * @return Array de direcciones destinatarias
+     */
+    function getDocumentRecipients(
+        bytes32 _documentHash
+    ) public view documentExists(_documentHash) returns (address[] memory) {
+        return documents[_documentHash].recipients;
     }
 
     /**

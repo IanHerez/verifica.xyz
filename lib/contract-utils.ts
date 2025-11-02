@@ -9,8 +9,8 @@ import { getChainConfig, getContractAddress, isSupportedChain } from "./contract
 
 // ABI del contrato VerificaDocuments
 export const VERIFICA_DOCUMENTS_ABI = [
-  // registerDocument
-  "function registerDocument(bytes32 _documentHash, string memory _ipfsCid, string memory _title, string memory _institution, uint256 _issuedAt) public returns (bool)",
+  // registerDocument (actualizado con recipients)
+  "function registerDocument(bytes32 _documentHash, string memory _ipfsCid, string memory _title, string memory _institution, address[] memory _recipients, uint256 _issuedAt) public returns (bool)",
   
   // signDocument
   "function signDocument(bytes32 _documentHash) public returns (bool)",
@@ -30,19 +30,31 @@ export const VERIFICA_DOCUMENTS_ABI = [
   // getTotalDocuments
   "function getTotalDocuments() public view returns (uint256)",
   
+  // getDocumentIpfsCid (NUEVO)
+  "function getDocumentIpfsCid(bytes32 _documentHash) public view returns (string memory)",
+  
+  // canSignDocument (NUEVO)
+  "function canSignDocument(bytes32 _documentHash, address _signer) public view returns (bool)",
+  
+  // getDocumentRecipients (NUEVO)
+  "function getDocumentRecipients(bytes32 _documentHash) public view returns (address[] memory)",
+  
   // authorizeCreator
   "function authorizeCreator(address _creator) public",
   
   // revokeCreator
   "function revokeCreator(address _creator) public",
   
+  // MAX_RECIPIENTS (NUEVO)
+  "function MAX_RECIPIENTS() public view returns (uint256)",
+  
   // Events
-  "event DocumentRegistered(bytes32 indexed documentHash, address indexed creator, string title, string institution, uint256 createdAt)",
+  "event DocumentRegistered(bytes32 indexed documentHash, address indexed creator, string title, string institution, address[] recipients, uint256 createdAt)",
   "event DocumentSigned(bytes32 indexed documentHash, address indexed signer, uint256 signedAt)",
   "event DocumentRevoked(bytes32 indexed documentHash, address indexed revokedBy, uint256 revokedAt)",
   
   // View functions
-  "function documents(bytes32) public view returns (bytes32 documentHash, string memory ipfsCid, address creator, string memory title, string memory institution, uint256 createdAt, uint256 issuedAt, bool verified, bool revoked)",
+  "function documents(bytes32) public view returns (bytes32 documentHash, string memory ipfsCid, address creator, string memory title, string memory institution, address[] memory recipients, uint256 createdAt, uint256 issuedAt, bool verified, bool revoked)",
 ] as const
 
 /**

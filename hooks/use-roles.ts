@@ -46,6 +46,14 @@ export function useRoles() {
       const config = getRoleConfig(finalENS, walletAddress || undefined)
       setRoleConfig(config)
       
+      console.log("[useRoles] Rol determinado:", {
+        role: config.role,
+        ensName: finalENS,
+        walletAddress: walletAddress || "no disponible",
+        canManageMembers: config.permissions.canManageMembers,
+        displayName: config.displayName,
+      })
+      
       // Rol determinado exitosamente
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Error al determinar rol"

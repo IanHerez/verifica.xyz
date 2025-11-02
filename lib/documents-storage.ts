@@ -1,7 +1,9 @@
 /**
  * Almacenamiento de documentos y sus destinatarios
  * 
- * Guarda documentos con información de destinatarios en localStorage
+ * En servidor: usa almacenamiento en memoria (persiste durante la sesión del servidor)
+ * En cliente: usa localStorage
+ * 
  * Formato: { [documentId]: { documentData, sentTo: { role, memberAddress? } } }
  */
 
@@ -33,16 +35,56 @@ export interface DocumentData {
 
 const STORAGE_KEY = "documents"
 
-/**
- * Obtiene todos los documentos
- */
-export function getAllDocuments(): Record<string, DocumentData> {
-  if (typeof window === "undefined") return {}
+// Almacenamiento en memoria para servidor (Next.js API routes)
+let memoryStorage: Record<string, DocumentData> | null = null
 
+/**
+ * Obtiene el almacenamiento según el entorno
+ */
+function getStorage(): Record<string, DocumentData> {
+  // En servidor: usa memoria
+  if (typeof window === "undefined") {
+    if (!memoryStorage) {
+      memoryStorage = {}
+    }
+    return memoryStorage
+  }
+
+  // En cliente: usa localStorage
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (!stored) return {}
     return JSON.parse(stored)
+  } catch (error) {
+    console.error("[documents-storage] Error al leer del localStorage:", error)
+    return {}
+  }
+}
+
+/**
+ * Guarda el almacenamiento según el entorno
+ */
+function setStorage(documents: Record<string, DocumentData>): void {
+  // En servidor: guarda en memoria
+  if (typeof window === "undefined") {
+    memoryStorage = documents
+    return
+  }
+
+  // En cliente: guarda en localStorage
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(documents))
+  } catch (error) {
+    console.error("[documents-storage] Error al guardar en localStorage:", error)
+  }
+}
+
+/**
+ * Obtiene todos los documentos
+ */
+export function getAllDocuments(): Record<string, DocumentData> {
+  try {
+    return getStorage()
   } catch (error) {
     console.error("[documents-storage] Error al leer documentos:", error)
     return {}
@@ -56,9 +98,10 @@ export function saveDocument(document: DocumentData): void {
   try {
     const documents = getAllDocuments()
     documents[document.id] = document
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(documents))
+    setStorage(documents)
   } catch (error) {
     console.error("[documents-storage] Error al guardar documento:", error)
+    throw error // Re-lanzar para que las API routes puedan manejar el error
   }
 }
 
@@ -127,7 +170,7 @@ export function signDocument(documentId: string, signerAddress: string): boolean
       document.signedBy.push(signerAddress.toLowerCase())
       document.status = "signed"
       documents[documentId] = document
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(documents))
+      setStorage(documents)
     }
 
     return true
@@ -148,7 +191,7 @@ export function deleteDocument(documentId: string): boolean {
     }
 
     delete documents[documentId]
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(documents))
+    setStorage(documents)
     return true
   } catch (error) {
     console.error("[documents-storage] Error al eliminar documento:", error)

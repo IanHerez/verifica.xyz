@@ -4,9 +4,9 @@
 
 ### Arbitrum Sepolia (Chain ID: 421614)
 
-- ✅ **Dirección del contrato:** `0x170B50F326d0653761a05d6960BD0a8354A87E24`
-- ✅ **Block Explorer:** https://sepolia.arbiscan.io/address/0x170B50F326d0653761a05d6960BD0a8354A87E24
-- ✅ Estado: Deployment exitoso
+- ✅ **Dirección del contrato:** Configurada en `.env` (NEXT_PUBLIC_ARBITRUM_SEPOLIA_CONTRACT)
+- ✅ **Estado:** Deployment exitoso ✅ Configurado en variables de entorno
+- 🔍 **Siguiente paso:** Reiniciar servidor y autorizar wallets como creadores
 
 ## ⏳ Pendiente
 

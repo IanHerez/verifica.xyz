@@ -10,6 +10,8 @@ import { Card } from "@/components/ui/card"
 import { useRoles } from "@/hooks/use-roles"
 import { useUserWallet } from "@/hooks/use-user-wallet"
 import { useDocuments } from "@/hooks/use-documents"
+import { useVerificaContract } from "@/hooks/use-verifica-contract"
+import { hashToBytes32 } from "@/lib/contract-utils"
 import { toast } from "sonner"
 import { FileText, Download, FileCheck, ArrowLeft, Clock, CheckCircle2 } from "lucide-react"
 import Link from "next/link"
@@ -22,8 +24,10 @@ export default function AlumnoDocumentPage() {
   const { role, canRead, canSign } = useRoles()
   const { walletAddress } = useUserWallet()
   const { signDocument: signDocAPI } = useDocuments()
+  const { signDocument: signOnBlockchain, chainSupported } = useVerificaContract()
   const [document, setDocument] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [signing, setSigning] = useState(false)
 
   useEffect(() => {
     const loadDocument = async () => {
@@ -88,7 +92,21 @@ export default function AlumnoDocumentPage() {
       return
     }
 
+    setSigning(true)
     try {
+      // Paso 1: Firmar en blockchain si el documento está registrado y la chain está soportada
+      if (chainSupported && document.blockchainTxHash && document.files?.[0]?.hash) {
+        try {
+          const documentHash = hashToBytes32(document.files[0].hash)
+          await signOnBlockchain(documentHash)
+          toast.success("Documento firmado en blockchain")
+        } catch (blockchainError) {
+          // No bloquear si falla blockchain, continuar con firma en BD
+          console.warn("[Sign] Error firmando en blockchain (continuando con BD):", blockchainError)
+        }
+      }
+
+      // Paso 2: Siempre firmar en base de datos (obligatorio)
       const success = await signDocAPI(document.id, walletAddress)
       if (success) {
         toast.success("Documento firmado exitosamente")
@@ -111,6 +129,8 @@ export default function AlumnoDocumentPage() {
     } catch (error) {
       console.error("Error firmando documento:", error)
       toast.error("Error al firmar el documento")
+    } finally {
+      setSigning(false)
     }
   }
 
@@ -245,9 +265,9 @@ export default function AlumnoDocumentPage() {
                       Al firmar, confirmas que has revisado y aceptas el contenido de este documento
                     </p>
                   </div>
-                  <Button onClick={handleSign} className="ml-4">
+                  <Button onClick={handleSign} className="ml-4" disabled={signing}>
                     <FileCheck className="w-4 h-4 mr-2" />
-                    Firmar Ahora
+                    {signing ? "Firmando..." : "Firmar Ahora"}
                   </Button>
                 </div>
               </Card>

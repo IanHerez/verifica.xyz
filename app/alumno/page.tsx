@@ -18,6 +18,8 @@ import { FileText, MoreVertical, Download, Eye, FileCheck, Clock, ExternalLink, 
 import { useRoles } from "@/hooks/use-roles"
 import { useUserWallet } from "@/hooks/use-user-wallet"
 import { useDocuments } from "@/hooks/use-documents"
+import { useVerificaContract } from "@/hooks/use-verifica-contract"
+import { hashToBytes32 } from "@/lib/contract-utils"
 import { type DocumentData } from "@/lib/documents-storage"
 import { toast } from "sonner"
 import { formatAddress } from "@/lib/web3-utils"
@@ -28,9 +30,11 @@ export default function AlumnoPage() {
   const { role, canView, canRead, canSign, loading: roleLoading, ensName, displayName } = useRoles()
   const { walletAddress, loading: walletLoading } = useUserWallet()
   const { documents: apiDocuments, loading: documentsLoading, loadDocuments, signDocument: signDocAPI } = useDocuments()
+  const { signDocument: signOnBlockchain, chainSupported } = useVerificaContract()
   const [documents, setDocuments] = useState<DocumentData[]>([])
   const [loading, setLoading] = useState(true)
   const [hasRedirected, setHasRedirected] = useState(false)
+  const [signing, setSigning] = useState<string | null>(null)
   const hasShownWelcome = useRef(false)
 
   // Pre-cargar access token
@@ -185,7 +189,21 @@ export default function AlumnoPage() {
       return
     }
 
+    setSigning(doc.id)
     try {
+      // Paso 1: Firmar en blockchain si el documento está registrado y la chain está soportada
+      if (chainSupported && doc.blockchainTxHash && doc.files?.[0]?.hash) {
+        try {
+          const documentHash = hashToBytes32(doc.files[0].hash)
+          await signOnBlockchain(documentHash)
+          toast.success("Documento firmado en blockchain")
+        } catch (blockchainError) {
+          // No bloquear si falla blockchain, continuar con firma en BD
+          console.warn("[Sign] Error firmando en blockchain (continuando con BD):", blockchainError)
+        }
+      }
+
+      // Paso 2: Siempre firmar en base de datos (obligatorio)
       const success = await signDocAPI(doc.id, walletAddress)
       if (success) {
         toast.success(`Documento "${doc.title}" firmado exitosamente`)
@@ -197,6 +215,8 @@ export default function AlumnoPage() {
     } catch (error) {
       console.error("Error firmando documento:", error)
       toast.error("Error al firmar el documento")
+    } finally {
+      setSigning(null)
     }
   }
 
@@ -382,9 +402,10 @@ export default function AlumnoPage() {
                                 <DropdownMenuItem
                                   onClick={() => handleSign(doc)}
                                   className="text-primary font-medium"
+                                  disabled={signing === doc.id}
                                 >
                                   <FileCheck className="w-4 h-4 mr-2" />
-                                  Firmar documento
+                                  {signing === doc.id ? "Firmando..." : "Firmar documento"}
                                 </DropdownMenuItem>
                               </>
                             )}

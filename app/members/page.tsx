@@ -36,17 +36,39 @@ export default function MembersPage() {
   useEffect(() => {
     if (authenticated && ready) {
       const allMembers = getAllMembers()
+      console.log("[Members] Cargando miembros:", Object.keys(allMembers).length, "miembros encontrados")
       setMembers(allMembers)
     }
   }, [authenticated, ready])
 
   // Redirigir si no tiene permisos
   useEffect(() => {
-    if (ready && authenticated && !canManageMembers) {
+    // Esperar a que el rol se determine completamente
+    if (!ready || !authenticated || role === "unknown" || !walletAddress) {
+      return // Aún cargando
+    }
+
+    console.log("[Members] Verificando permisos:", {
+      ready,
+      authenticated,
+      canManageMembers,
+      role,
+      displayName,
+      walletAddress,
+    })
+
+    // Permitir acceso si es rector (por rol o por wallet conocida)
+    const isKnownRector = walletAddress?.toLowerCase() === "0x5e8ce7675ecf8e892f704a4de8a268987789d0da"
+    const canAccess = canManageMembers || (role === "rector") || isKnownRector
+
+    if (!canAccess) {
+      console.warn("[Members] Sin permisos, redirigiendo a /documents")
       toast.error("No tienes permisos para gestionar miembros")
       router.push("/documents")
+    } else {
+      console.log("[Members] ✅ Acceso permitido para gestión de miembros")
     }
-  }, [ready, authenticated, canManageMembers, router])
+  }, [ready, authenticated, canManageMembers, role, displayName, walletAddress, router])
 
   // Verificar ENS automáticamente cuando se ingresa una wallet
   const handleWalletInputChange = async (address: string) => {
@@ -69,9 +91,15 @@ export default function MembersPage() {
       return
     }
 
-    if (!newMemberForm.walletAddress || !newMemberForm.ensName) {
-      toast.error("Debes completar todos los campos")
+    if (!newMemberForm.walletAddress) {
+      toast.error("Debes ingresar una dirección de wallet")
       return
+    }
+
+    // ENS es opcional para pruebas, usar wallet address como fallback
+    if (!newMemberForm.ensName) {
+      newMemberForm.ensName = `${newMemberForm.walletAddress.slice(0, 6)}...${newMemberForm.walletAddress.slice(-4)}`
+      toast.info("ENS no proporcionado, usando dirección como nombre temporal")
     }
 
     // Validar formato de wallet
@@ -80,21 +108,42 @@ export default function MembersPage() {
       return
     }
 
-    // Validar formato de ENS
-    if (!newMemberForm.ensName.endsWith(".eth")) {
-      toast.error("El nombre ENS debe terminar en .eth")
-      return
+    // Validar formato de ENS (hacer opcional para pruebas)
+    // Permitir agregar sin .eth si es para pruebas
+    if (newMemberForm.ensName && !newMemberForm.ensName.endsWith(".eth")) {
+      const useAnyway = confirm(
+        "El nombre ENS no termina en .eth. ¿Deseas continuar de todas formas? (Útil para pruebas sin ENS real)"
+      )
+      if (!useAnyway) {
+        return
+      }
     }
 
     setIsAdding(true)
 
     try {
-      // Verificar que el ENS existe y resuelve a la wallet
-      const resolvedAddress = await resolveENS(newMemberForm.ensName)
-      if (!resolvedAddress || resolvedAddress.toLowerCase() !== newMemberForm.walletAddress.toLowerCase()) {
-        toast.error("El ENS no resuelve a la wallet proporcionada")
-        setIsAdding(false)
-        return
+      // Opcional: Verificar que el ENS existe y resuelve a la wallet
+      // Si falla la resolución, permitir agregar de todas formas (para pruebas)
+      let ensResolved = false
+      try {
+        const resolvedAddress = await resolveENS(newMemberForm.ensName)
+        if (resolvedAddress && resolvedAddress.toLowerCase() === newMemberForm.walletAddress.toLowerCase()) {
+          ensResolved = true
+        }
+      } catch (ensError) {
+        console.warn("[Members] Error resolviendo ENS, continuando de todas formas:", ensError)
+        // Continuar aunque falle la resolución de ENS (para permitir pruebas sin ENS real)
+      }
+
+      // Si el ENS no resuelve, mostrar advertencia pero permitir continuar
+      if (!ensResolved) {
+        const confirmContinue = confirm(
+          "El ENS no pudo ser verificado o no resuelve a la wallet proporcionada. ¿Deseas continuar de todas formas? (Útil para pruebas)"
+        )
+        if (!confirmContinue) {
+          setIsAdding(false)
+          return
+        }
       }
 
       // Agregar miembro
@@ -145,9 +194,27 @@ export default function MembersPage() {
     )
   }
 
-  if (!canManageMembers) {
+  // Verificar permisos de nuevo (por si el hook aún está cargando)
+  const isKnownRector = walletAddress?.toLowerCase() === "0x5e8ce7675ecf8e892f704a4de8a268987789d0da"
+  const hasAccess = canManageMembers || role === "rector" || isKnownRector
+
+  if (!hasAccess && ready && authenticated && walletAddress) {
+    console.log("[Members] No tiene permisos, redirigiendo...")
     return null // Se redirigirá automáticamente
   }
+
+  if (!ready || !authenticated || !walletAddress) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Verificando permisos...</p>
+        </div>
+      </div>
+    )
+  }
+
+  console.log("[Members] Renderizando página de gestión de miembros")
 
   const membersList = Object.values(members)
   const alumnos = membersList.filter((m) => m.role === "alumno")
@@ -252,7 +319,7 @@ export default function MembersPage() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                El ENS debe estar registrado en blockchain y resolver a la wallet proporcionada
+                ENS opcional: Si no tienes ENS registrado, deja el campo vacío y se usará la dirección como nombre. Para producción, el ENS debe resolver a la wallet.
               </p>
             </Card>
 

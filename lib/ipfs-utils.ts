@@ -60,3 +60,66 @@ export function getIPFSUrl(ipfsHash: string, gateway: string = "https://gateway.
   return `${gateway}${ipfsHash}`
 }
 
+/**
+ * Descarga un archivo desde IPFS usando su CID
+ * @param ipfsHash - CID de IPFS
+ * @param gateway - Gateway IPFS (default: Pinata)
+ * @returns Blob del archivo
+ */
+export async function downloadFromIPFS(
+  ipfsHash: string,
+  gateway: string = "https://gateway.pinata.cloud/ipfs/"
+): Promise<Blob> {
+  const url = getIPFSUrl(ipfsHash, gateway)
+  const response = await fetch(url)
+  
+  if (!response.ok) {
+    throw new Error(`Error descargando archivo desde IPFS: ${response.statusText}`)
+  }
+  
+  return await response.blob()
+}
+
+/**
+ * Verifica si un CID de IPFS es válido y accesible
+ * @param ipfsHash - CID de IPFS a verificar
+ * @param gateway - Gateway IPFS (default: Pinata)
+ * @returns true si el archivo es accesible
+ */
+export async function verifyIPFSCid(
+  ipfsHash: string,
+  gateway: string = "https://gateway.pinata.cloud/ipfs/"
+): Promise<boolean> {
+  try {
+    const url = getIPFSUrl(ipfsHash, gateway)
+    const response = await fetch(url, { method: "HEAD" })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Obtiene información de un archivo en IPFS
+ * @param ipfsHash - CID de IPFS
+ * @param gateway - Gateway IPFS (default: Pinata)
+ * @returns Información del archivo (tamaño, tipo, etc.)
+ */
+export async function getIPFSFileInfo(
+  ipfsHash: string,
+  gateway: string = "https://gateway.pinata.cloud/ipfs/"
+): Promise<{ size: number; type: string; url: string }> {
+  const url = getIPFSUrl(ipfsHash, gateway)
+  const response = await fetch(url, { method: "HEAD" })
+  
+  if (!response.ok) {
+    throw new Error(`Archivo no encontrado en IPFS: ${response.statusText}`)
+  }
+  
+  return {
+    size: parseInt(response.headers.get("content-length") || "0", 10),
+    type: response.headers.get("content-type") || "application/octet-stream",
+    url,
+  }
+}
+

@@ -18,14 +18,32 @@ export default function Home() {
 
   // Redirigir según el rol cuando el usuario esté autenticado
   useEffect(() => {
-    // Esperar a que Privy y el rol estén listos antes de redirigir
     // Evitar múltiples redirecciones
-    if (ready && authenticated && !roleLoading && role !== "unknown" && !hasRedirected) {
-      setHasRedirected(true)
-      if (role === "alumno") {
-        router.replace("/alumno") // Usar replace en lugar de push para evitar historial
-      } else if (role === "maestro" || role === "rector") {
-        router.replace("/documents")
+    if (hasRedirected) return
+
+    // Si Privy está listo y el usuario está autenticado
+    if (ready && authenticated) {
+      // Si el rol ya se determinó (incluso si es "unknown")
+      if (!roleLoading) {
+        setHasRedirected(true)
+        if (role === "alumno") {
+          router.replace("/alumno")
+        } else if (role === "maestro" || role === "rector") {
+          router.replace("/documents")
+        } else {
+          // Si el rol es "unknown", redirigir a documents por defecto
+          console.log("[Home] Rol unknown, redirigiendo a /documents por defecto")
+          router.replace("/documents")
+        }
+      } else {
+        // Si lleva más de 5 segundos cargando el rol, redirigir de todas formas
+        const timeout = setTimeout(() => {
+          console.warn("[Home] Timeout cargando rol, redirigiendo a /documents")
+          setHasRedirected(true)
+          router.replace("/documents")
+        }, 5000)
+
+        return () => clearTimeout(timeout)
       }
     }
   }, [ready, authenticated, role, roleLoading, hasRedirected, router])
@@ -43,7 +61,7 @@ export default function Home() {
   }
 
   // Si está autenticado, mostrar loading mientras se determina el rol y redirige
-  if (authenticated) {
+  if (authenticated && !hasRedirected) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">

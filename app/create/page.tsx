@@ -37,8 +37,8 @@ interface PublishingState {
 export default function CreateDocumentPage() {
   const { canSendToAlumnos, canSendToMaestros, role } = useRoles()
   const { walletAddress } = useUserWallet()
-  const { getAccessToken } = usePrivy()
-  const { registerDocument: registerDocumentOnChain, chainSupported } = useVerificaContract()
+  const { getAccessToken, getEthereumProvider } = usePrivy()
+  const { registerDocument: registerDocumentOnChain, chainSupported, chainId } = useVerificaContract()
   const [files, setFiles] = useState<DocumentFile[]>([])
   const [formData, setFormData] = useState({
     title: "",
@@ -175,32 +175,132 @@ export default function CreateDocumentPage() {
       // Registrar en blockchain si está disponible (opcional - no bloquea si falla)
       let blockchainTxHash: string | null = null
       let blockchainChainId: number | null = null
+      
+      console.log("[Create] Estado de blockchain:", {
+        chainSupported,
+        hasFiles: processedFiles.length > 0,
+        firstFileHash: processedFiles[0]?.hash,
+        firstFileIpfsCid: processedFiles[0]?.ipfsCid,
+      })
+      
       if (chainSupported && processedFiles.length > 0) {
         try {
           const firstFile = processedFiles[0]
+          
+          if (!firstFile.hash || !firstFile.ipfsCid) {
+            throw new Error("Falta hash o IPFS CID del archivo")
+          }
+          
+          // Construir array de destinatarios según el rol seleccionado
+          let recipients: string[] = []
+          
+          // Si el valor es "__all__" o está vacío, significa "todos"
+          const isAllSelected = !formData.targetMember || formData.targetMember === "__all__"
+          
+          if (!isAllSelected) {
+            // Destinatario específico seleccionado
+            recipients = [formData.targetMember]
+          } else {
+            // "Todos" del rol - obtener todos los miembros del rol
+            if (formData.targetRole === "alumnos") {
+              recipients = availableAlumnos.map(a => a.walletAddress).filter(addr => addr && addr.length > 0)
+            } else if (formData.targetRole === "maestros") {
+              recipients = availableMaestros.map(m => m.walletAddress).filter(addr => addr && addr.length > 0)
+            }
+          }
+
+          // Validar que haya al menos un destinatario
+          if (recipients.length === 0) {
+            const roleName = formData.targetRole === "alumnos" ? "alumnos" : "maestros"
+            const hasSpecificTarget = !!formData.targetMember
+            const hasMembersInRole = formData.targetRole === "alumnos" 
+              ? availableAlumnos.length > 0 
+              : availableMaestros.length > 0
+            
+            let errorMessage = "No hay destinatarios disponibles."
+            
+            if (!hasSpecificTarget && !hasMembersInRole) {
+              errorMessage = `No hay ${roleName} registrados. Por favor selecciona un destinatario específico o agrega miembros primero en la sección "Miembros".`
+            } else if (!hasSpecificTarget && hasMembersInRole) {
+              errorMessage = `Selecciona un destinatario específico de la lista o verifica que los ${roleName} tengan wallet address válida.`
+            } else {
+              errorMessage = "Selecciona un destinatario válido."
+            }
+            
+            throw new Error(errorMessage)
+          }
+
+          // Calcular issuedAt como Unix timestamp (segundos)
+          const issueDate = new Date().toISOString().split("T")[0] // Fecha actual
+          const issuedAt = Math.floor(new Date(issueDate).getTime() / 1000) // Convertir a Unix timestamp
+          
+          console.log("[Create] Intentando registrar en blockchain:", {
+            hash: firstFile.hash,
+            ipfsCid: firstFile.ipfsCid,
+            title: formData.title,
+            institution: formData.institution,
+            recipients,
+            recipientsCount: recipients.length,
+            issuedAt,
+          })
+          
           const result = await registerDocumentOnChain(
             firstFile.hash,
             firstFile.ipfsCid || "",
             formData.title,
-            formData.institution
+            formData.institution,
+            recipients, // NUEVO: Pasar destinatarios
+            issuedAt // Pasar timestamp explícitamente
           )
           blockchainTxHash = result.txHash
           
-          // Obtener chainId actual del provider
-          const provider = await getEthereumProvider()
-          if (provider) {
-            const ethersProvider = new BrowserProvider(provider)
-            const network = await ethersProvider.getNetwork()
-            blockchainChainId = Number(network.chainId)
+          // Obtener chainId actual del provider o del hook
+          if (chainId) {
+            blockchainChainId = chainId
+          } else {
+            // Fallback: obtener del provider directamente
+            try {
+              const provider = await getEthereumProvider()
+              if (provider) {
+                const ethersProvider = new BrowserProvider(provider)
+                const network = await ethersProvider.getNetwork()
+                blockchainChainId = Number(network.chainId)
+              }
+            } catch (providerError) {
+              console.warn("[Create] Error obteniendo chainId del provider:", providerError)
+            }
           }
           
-          console.log("[Create] Documento registrado en blockchain:", {
+          console.log("[Create] ✅ Documento registrado en blockchain:", {
             txHash: blockchainTxHash,
             chainId: blockchainChainId,
           })
-        } catch (blockchainError) {
-          // No bloquear el flujo si falla blockchain, solo log
-          console.warn("[Create] Error registrando en blockchain (continuando sin blockchain):", blockchainError)
+          
+          toast.success(`Documento registrado en blockchain: ${blockchainTxHash.slice(0, 10)}...`)
+        } catch (blockchainError: any) {
+          // No bloquear el flujo si falla blockchain, pero mostrar el error
+          const errorMessage = blockchainError?.message || blockchainError?.toString() || "Error desconocido"
+          console.error("[Create] ❌ Error registrando en blockchain:", blockchainError)
+          console.error("[Create] Detalles del error:", {
+            message: errorMessage,
+            code: blockchainError?.code,
+            reason: blockchainError?.reason,
+            data: blockchainError?.data,
+          })
+          
+          // Mostrar error específico al usuario
+          if (errorMessage.includes("Not authorized") || errorMessage.includes("not authorized")) {
+            toast.error("Tu wallet no está autorizada. Autoriza tu dirección usando authorizeCreator en Remix")
+          } else if (errorMessage.includes("User rejected") || errorMessage.includes("user rejected")) {
+            toast.error("Transacción rechazada. El documento se guardó sin blockchain")
+          } else {
+            toast.warning(`Error en blockchain: ${errorMessage.slice(0, 50)}... El documento se guardó igual`)
+          }
+        }
+      } else {
+        if (!chainSupported) {
+          console.warn("[Create] ⚠️ Blockchain no soportada - verificando estado del contrato")
+          toast.info("Blockchain no disponible. El documento se guardó sin registro en blockchain")
         }
       }
 
@@ -498,7 +598,7 @@ export default function CreateDocumentPage() {
                                 <SelectValue placeholder="Todos los alumnos" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="">Todos los alumnos</SelectItem>
+                                <SelectItem value="__all__">Todos los alumnos</SelectItem>
                                 {availableAlumnos.map((alumno) => (
                                   <SelectItem key={alumno.walletAddress} value={alumno.walletAddress}>
                                     {alumno.ensName}
@@ -524,7 +624,7 @@ export default function CreateDocumentPage() {
                                 <SelectValue placeholder="Todos los maestros" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="">Todos los maestros</SelectItem>
+                                <SelectItem value="__all__">Todos los maestros</SelectItem>
                                 {availableMaestros.map((maestro) => (
                                   <SelectItem key={maestro.walletAddress} value={maestro.walletAddress}>
                                     {maestro.ensName}

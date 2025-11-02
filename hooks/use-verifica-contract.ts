@@ -34,17 +34,54 @@ export function useVerificaContract() {
       setError(null)
 
       try {
-        const provider = await getEthereumProvider()
+        // Obtener provider desde Privy (soporta wallets externas y embebidas)
+        let provider = null
+        
+        try {
+          // Intentar obtener provider de Privy primero
+          if (getEthereumProvider) {
+            provider = await getEthereumProvider()
+          }
+        } catch (privyError) {
+          // Si falla Privy, intentar window.ethereum como fallback
+          console.warn("[useVerificaContract] Error obteniendo provider de Privy, usando fallback:", privyError)
+        }
+        
+        // Fallback: usar window.ethereum directamente si Privy no funciona
+        if (!provider && typeof window !== "undefined" && (window as any).ethereum) {
+          provider = (window as any).ethereum
+        }
+        
         if (!provider) {
-          throw new Error("Provider no disponible")
+          throw new Error("Provider no disponible - conecta tu wallet")
         }
 
         const ethersProvider = new BrowserProvider(provider)
+        const network = await ethersProvider.getNetwork()
+        const currentChainId = Number(network.chainId)
         
+        console.log("[useVerificaContract] Chain detectada:", {
+          chainId: currentChainId,
+          chainName: network.name,
+        })
+
         // Verificar que la chain está soportada
         const chainCheck = await checkSupportedChain(ethersProvider)
+        console.log("[useVerificaContract] Chain check:", chainCheck)
+        
         if (!chainCheck.supported) {
           const config = chainCheck.chainId ? getChainConfig(chainCheck.chainId) : null
+          const contractAddress = chainCheck.chainId ? getContractAddress(chainCheck.chainId) : null
+          
+          console.error("[useVerificaContract] Chain no soportada:", {
+            chainId: chainCheck.chainId,
+            configName: config?.name,
+            contractAddress,
+            envVar: chainCheck.chainId === 421614 
+              ? process.env.NEXT_PUBLIC_ARBITRUM_SEPOLIA_CONTRACT 
+              : process.env.NEXT_PUBLIC_SCROLL_SEPOLIA_CONTRACT,
+          })
+          
           throw new Error(
             config
               ? `Chain ${config.name} (${chainCheck.chainId}) no tiene contrato configurado. Configura NEXT_PUBLIC_${config.name.toUpperCase().replace(/\s/g, "_")}_CONTRACT en .env`
@@ -52,20 +89,41 @@ export function useVerificaContract() {
           )
         }
 
+        // Verificar que hay dirección de contrato
+        const contractAddress = getContractAddress(chainCheck.chainId!)
+        if (!contractAddress) {
+          const config = getChainConfig(chainCheck.chainId!)
+          console.error("[useVerificaContract] No hay dirección de contrato:", {
+            chainId: chainCheck.chainId,
+            chainName: config?.name,
+            envVar: `NEXT_PUBLIC_${config?.name?.toUpperCase().replace(/\s/g, "_")}_CONTRACT`,
+          })
+          throw new Error(
+            `No hay dirección de contrato configurada para ${config?.name || chainCheck.chainId}. Configura NEXT_PUBLIC_${config?.name?.toUpperCase().replace(/\s/g, "_")}_CONTRACT en .env y reinicia el servidor`
+          )
+        }
+
+        console.log("[useVerificaContract] Contrato encontrado:", {
+          chainId: chainCheck.chainId,
+          contractAddress,
+        })
+
         setChainId(chainCheck.chainId!)
         setChainSupported(true)
 
         // Obtener contrato
         const verificaContract = await getVerificaContract(ethersProvider)
         if (!verificaContract) {
-          throw new Error("No se pudo obtener el contrato")
+          throw new Error("No se pudo obtener el contrato - verifica la dirección en .env")
         }
 
         setContract(verificaContract)
+        console.log("[useVerificaContract] ✅ Contrato cargado exitosamente")
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Error cargando contrato"
         setError(errorMessage)
-        console.error("[useVerificaContract] Error:", err)
+        console.error("[useVerificaContract] ❌ Error:", err)
+        setChainSupported(false)
       } finally {
         setLoading(false)
       }
@@ -76,6 +134,7 @@ export function useVerificaContract() {
 
   /**
    * Registra un documento en blockchain
+   * @param recipients Array de direcciones destinatarias (solo ellos pueden firmar)
    */
   const registerDocument = useCallback(
     async (
@@ -83,10 +142,15 @@ export function useVerificaContract() {
       ipfsCid: string,
       title: string,
       institution: string,
+      recipients: string[], // NUEVO: Array de addresses de destinatarios
       issuedAt?: number
     ) => {
       if (!contract) {
         throw new Error("Contrato no disponible")
+      }
+
+      if (!recipients || recipients.length === 0) {
+        throw new Error("Se requiere al menos un destinatario")
       }
 
       try {
@@ -94,11 +158,22 @@ export function useVerificaContract() {
         const hashBytes32 = hashToBytes32(documentHash)
         const timestamp = issuedAt || Math.floor(Date.now() / 1000)
 
+        // Validar y limpiar addresses
+        const validRecipients = recipients
+          .filter((addr) => addr && addr.length > 0)
+          .map((addr) => addr.toLowerCase())
+
+        if (validRecipients.length === 0) {
+          throw new Error("No hay destinatarios válidos")
+        }
+
         console.log("[useVerificaContract] Registrando documento:", {
           hash: hashBytes32,
           ipfsCid,
           title,
           institution,
+          recipients: validRecipients,
+          recipientsCount: validRecipients.length,
           timestamp,
         })
 
@@ -107,14 +182,11 @@ export function useVerificaContract() {
           ipfsCid,
           title,
           institution,
+          validRecipients, // NUEVO: Pasar destinatarios
           timestamp
         )
 
         console.log("[useVerificaContract] Transacción enviada:", tx.hash)
-        
-        // Esperar confirmación (opcional - puedes retornar el hash inmediatamente)
-        // const receipt = await tx.wait()
-        // console.log("[useVerificaContract] Transacción confirmada:", receipt)
 
         return {
           success: true,
@@ -191,7 +263,7 @@ export function useVerificaContract() {
   )
 
   /**
-   * Obtiene los documentos de un usuario
+   * Obtiene los documentos de un usuario (como creador o destinatario)
    */
   const getUserDocuments = useCallback(
     async (userAddress: string) => {
@@ -210,6 +282,88 @@ export function useVerificaContract() {
     [contract]
   )
 
+  /**
+   * Obtiene el CID de IPFS de un documento para recuperar el archivo
+   */
+  const getDocumentIpfsCid = useCallback(
+    async (documentHash: string) => {
+      if (!contract) {
+        throw new Error("Contrato no disponible")
+      }
+
+      try {
+        const hashBytes32 = hashToBytes32(documentHash)
+        const cid = await contract.getDocumentIpfsCid(hashBytes32)
+        return cid as string
+      } catch (err) {
+        console.error("[useVerificaContract] Error obteniendo CID:", err)
+        throw err
+      }
+    },
+    [contract]
+  )
+
+  /**
+   * Verifica si un usuario puede firmar un documento (es destinatario)
+   */
+  const canSignDocument = useCallback(
+    async (documentHash: string, signerAddress: string) => {
+      if (!contract) {
+        throw new Error("Contrato no disponible")
+      }
+
+      try {
+        const hashBytes32 = hashToBytes32(documentHash)
+        const canSign = await contract.canSignDocument(hashBytes32, signerAddress)
+        return canSign as boolean
+      } catch (err) {
+        console.error("[useVerificaContract] Error verificando si puede firmar:", err)
+        return false
+      }
+    },
+    [contract]
+  )
+
+  /**
+   * Obtiene todos los destinatarios de un documento
+   */
+  const getDocumentRecipients = useCallback(
+    async (documentHash: string) => {
+      if (!contract) {
+        throw new Error("Contrato no disponible")
+      }
+
+      try {
+        const hashBytes32 = hashToBytes32(documentHash)
+        const recipients = await contract.getDocumentRecipients(hashBytes32)
+        return recipients as string[]
+      } catch (err) {
+        console.error("[useVerificaContract] Error obteniendo destinatarios:", err)
+        return []
+      }
+    },
+    [contract]
+  )
+
+  // Debug: Log del estado del contrato
+  useEffect(() => {
+    if (authenticated && ready) {
+      console.log("[useVerificaContract] Estado:", {
+        chainSupported,
+        chainId,
+        hasContract: !!contract,
+        error,
+        loading,
+        contractAddress: chainId ? getContractAddress(chainId) : null,
+      })
+      
+      // Si hay error, mostrarlo claramente
+      if (error && !loading) {
+        console.error("[useVerificaContract] ⚠️ Error detectado:", error)
+      }
+    }
+  }, [authenticated, ready, chainSupported, chainId, contract, error, loading])
+
   return {
     contract,
     chainId,
@@ -220,6 +374,9 @@ export function useVerificaContract() {
     signDocument,
     verifyDocument,
     getUserDocuments,
+    getDocumentIpfsCid,
+    canSignDocument,
+    getDocumentRecipients,
   }
 }
 
