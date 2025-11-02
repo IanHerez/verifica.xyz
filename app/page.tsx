@@ -82,12 +82,12 @@ export default function Home() {
           <Link href="/" className="flex items-center gap-2 font-bold text-xl hover:opacity-80 transition-opacity">
             <Image
               src="/verifica logo.png"
-              alt="Verifica Logo"
+              alt="verifica.xyz Logo"
               width={32}
               height={32}
               className="rounded-lg object-contain"
             />
-            <span>Verifica</span>
+            <span>verifica.xyz</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-sm hover:text-primary transition-colors">
@@ -264,7 +264,7 @@ export default function Home() {
       <footer className="border-t border-border bg-card/50 py-8 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between text-sm text-muted-foreground">
-            <p>&copy; 2025 Verifica. Todos los derechos reservados.</p>
+            <p>&copy; 2025 verifica.xyz. Todos los derechos reservados.</p>
             <div className="mt-4 md:mt-0">
               <a 
                 href="https://x.com/IanClavely" 

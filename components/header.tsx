@@ -101,12 +101,12 @@ export function Header() {
         <Link href="/documents" className="flex items-center gap-2 flex-shrink-0 hover:opacity-80 transition-opacity">
           <Image
             src="/verifica logo.png"
-            alt="Verifica Logo"
+            alt="verifica.xyz Logo"
             width={32}
             height={32}
             className="rounded-lg object-contain"
           />
-          <span className="font-bold text-lg hidden sm:inline">Verifica</span>
+          <span className="font-bold text-lg hidden sm:inline">verifica.xyz</span>
         </Link>
 
         {/* Search */}

@@ -85,12 +85,12 @@ export function Sidebar() {
         >
           <Image
             src="/verifica logo.png"
-            alt="Verifica Logo"
+            alt="verifica.xyz Logo"
             width={32}
             height={32}
             className="rounded-lg object-contain"
           />
-          <span className="font-semibold text-lg">Verifica</span>
+          <span className="font-semibold text-lg">verifica.xyz</span>
         </Link>
       </div>
 

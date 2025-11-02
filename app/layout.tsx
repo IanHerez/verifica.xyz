@@ -9,7 +9,7 @@ import "./globals.css"
 const workSans = Work_Sans({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Verifica - Transparencia Institucional",
+  title: "verifica.xyz - Transparencia Institucional",
   description: "Documentos oficiales públicos verificables con blockchain",
   generator: "v0.app",
 }
