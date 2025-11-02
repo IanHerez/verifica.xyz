@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { Suspense, useEffect, useState, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { usePrivy } from "@privy-io/react-auth"
 import { Sidebar } from "@/components/sidebar"
@@ -21,7 +21,7 @@ import { useDocuments } from "@/hooks/use-documents"
 import { type DocumentData } from "@/lib/documents-storage"
 import { toast } from "sonner"
 
-export default function SignedDocumentsPage() {
+function SignedDocumentsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { authenticated, ready, getAccessToken } = usePrivy()
@@ -327,6 +327,21 @@ export default function SignedDocumentsPage() {
         </main>
       </div>
     </div>
+  )
+}
+
+export default function SignedDocumentsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando...</p>
+        </div>
+      </div>
+    }>
+      <SignedDocumentsContent />
+    </Suspense>
   )
 }
 
