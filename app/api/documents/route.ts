@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyPrivyToken, extractAccessToken } from "@/lib/privy-verification"
-import { getAllDocuments, saveDocument, deleteDocument, type DocumentData } from "@/lib/documents-storage"
+import { getAllDocuments, saveDocument, deleteDocument, clearAllDocuments, type DocumentData } from "@/lib/documents-storage"
 
 /**
  * API Route para gestionar documentos

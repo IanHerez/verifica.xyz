@@ -17,15 +17,46 @@ import {
 import { formatAddress } from "@/lib/web3-utils"
 import { useUserWallet } from "@/hooks/use-user-wallet"
 import { useEmailENS } from "@/hooks/use-email-ens"
+import { useRoles } from "@/hooks/use-roles"
+import { useNotifications } from "@/hooks/use-notifications"
 import Link from "next/link"
+import { formatDistanceToNow } from "date-fns"
+import { es } from "date-fns/locale"
 
 export function Header() {
   const router = useRouter()
   const { authenticated, user, login, logout, getAccessToken } = usePrivy()
   const { walletAddress, loading: walletLoading, refresh } = useUserWallet()
   const { ensName } = useEmailENS() // Prioriza ENS por email
+  const { role } = useRoles() // Para verificar permisos
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications()
   const [searchQuery, setSearchQuery] = useState("")
   const [showNotifications, setShowNotifications] = useState(false)
+  
+  // Solo rectores pueden acceder a gestión ENS
+  const canManageENS = role === "rector"
+  
+  // Formatear tiempo relativo
+  const formatTime = (timestamp: number) => {
+    try {
+      return formatDistanceToNow(new Date(timestamp), { addSuffix: true, locale: es })
+    } catch {
+      return "Hace un momento"
+    }
+  }
+  
+  const handleNotificationClick = (notificationId: string, documentId?: string) => {
+    markAsRead(notificationId)
+    if (documentId) {
+      // Redirigir según el rol
+      if (role === "alumno") {
+        router.push(`/alumno/${documentId}`)
+      } else {
+        router.push(`/documents/${documentId}`)
+      }
+      setShowNotifications(false)
+    }
+  }
 
   // Pre-cargar access token para reducir latencia en requests
   useEffect(() => {
@@ -95,29 +126,59 @@ export function Header() {
           <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications}>
             <DropdownMenuTrigger asChild>
               <button className="p-2 hover:bg-muted rounded-lg transition-colors relative">
-            <Bell className="w-5 h-5 text-muted-foreground" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-          </button>
+                <Bell className="w-5 h-5 text-muted-foreground" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                )}
+              </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuLabel>Notificaciones</DropdownMenuLabel>
+            <DropdownMenuContent align="end" className="w-80 max-h-[500px] overflow-y-auto">
+              <div className="flex items-center justify-between px-2 py-1.5">
+                <DropdownMenuLabel>Notificaciones</DropdownMenuLabel>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={markAllAsRead}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Marcar todas como leídas
+                  </button>
+                )}
+              </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="py-3">
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium">Nuevo documento verificado</p>
-                  <p className="text-xs text-muted-foreground">Hace 2 horas</p>
+              {notifications.length === 0 ? (
+                <div className="px-2 py-8 text-center">
+                  <p className="text-sm text-muted-foreground">No hay notificaciones</p>
                 </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="py-3">
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium">Tu documento ha sido publicado</p>
-                  <p className="text-xs text-muted-foreground">Hace 1 día</p>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <span className="text-sm">Ver todas las notificaciones</span>
-              </DropdownMenuItem>
+              ) : (
+                <>
+                  {notifications.map((notification) => (
+                    <DropdownMenuItem
+                      key={notification.id}
+                      className={`py-3 cursor-pointer ${!notification.read ? "bg-muted/50" : ""}`}
+                      onClick={() => handleNotificationClick(notification.id, notification.documentId)}
+                    >
+                      <div className="flex flex-col gap-1 w-full">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium flex-1">{notification.title}</p>
+                          {!notification.read && (
+                            <span className="w-2 h-2 bg-primary rounded-full mt-1 flex-shrink-0"></span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{notification.message}</p>
+                        {notification.documentTitle && (
+                          <p className="text-xs text-muted-foreground/80 italic">
+                            {notification.documentTitle}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatTime(notification.timestamp)}
+                        </p>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -154,9 +215,11 @@ export function Header() {
               <DropdownMenuItem onClick={() => router.push("/fees")}>
                 Aranceles
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/ens")}>
-                Gestión ENS
-              </DropdownMenuItem>
+              {canManageENS && (
+                <DropdownMenuItem onClick={() => router.push("/ens")}>
+                  Gestión ENS
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                 Cerrar Sesión
@@ -167,10 +230,22 @@ export function Header() {
           {/* Wallet Button */}
           {authenticated ? (
             walletAddress ? (
-              <Button variant="outline" size="sm" onClick={() => router.push("/ens")} title="Ver wallet y ENS">
-                <Wallet className="w-4 h-4 mr-2" />
-                {ensName || formatAddress(walletAddress)}
-              </Button>
+              <div 
+                onClick={() => canManageENS && router.push("/ens")} 
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-background ${canManageENS ? "cursor-pointer hover:bg-muted/50" : "cursor-default"}`}
+              >
+                <Wallet className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <div className="flex flex-col items-start">
+                  {ensName ? (
+                    <>
+                      <span className="text-xs font-medium leading-tight text-foreground">{ensName}</span>
+                      <span className="text-xs text-muted-foreground leading-tight">{formatAddress(walletAddress)}</span>
+                    </>
+                  ) : (
+                    <span className="text-xs text-foreground leading-tight">{formatAddress(walletAddress)}</span>
+                  )}
+                </div>
+              </div>
             ) : walletLoading ? (
               <Button variant="outline" size="sm" disabled>
                 <Wallet className="w-4 h-4 mr-2 animate-pulse" />

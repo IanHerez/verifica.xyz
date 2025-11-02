@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePrivy } from "@privy-io/react-auth"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { Check, Shield, Zap, Lock, Wallet, FileCheck } from "lucide-react"
+import { Check, Shield, Zap, Lock, Wallet, FileCheck, MessageCircle } from "lucide-react"
 import { useRoles } from "@/hooks/use-roles"
 
 export default function Home() {
@@ -93,9 +93,6 @@ export default function Home() {
             <a href="#features" className="text-sm hover:text-primary transition-colors">
               Características
             </a>
-            <a href="#about" className="text-sm hover:text-primary transition-colors">
-              Sobre Nosotros
-            </a>
             <a href="#contact" className="text-sm hover:text-primary transition-colors">
               Contacto
             </a>
@@ -116,7 +113,7 @@ export default function Home() {
                 <span className="text-sm font-medium text-primary">Transparencia Institucional</span>
               </div>
               <h1 className="text-5xl md:text-6xl font-bold leading-tight text-balance">
-                Documentos verificables con <span className="text-primary">blockchain</span>
+                Sistema de transparencia institucional <span className="text-primary">inmutable</span>
               </h1>
               <p className="text-xl text-muted-foreground leading-relaxed text-balance">
                 La plataforma definitiva para instituciones que requieren transparencia, seguridad y confianza en sus
@@ -132,35 +129,35 @@ export default function Home() {
               </div>
             </div>
             <div className="hidden md:flex items-center justify-center">
-              <div className="relative w-full aspect-square max-w-md">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20 rounded-2xl blur-3xl"></div>
-                <div className="relative bg-card border border-border rounded-2xl p-8 backdrop-blur">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
-                        <Shield className="w-6 h-6 text-primary" />
+              <div className="relative w-full max-w-lg">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20 rounded-3xl blur-3xl"></div>
+                <div className="relative bg-card border border-border rounded-3xl p-12 backdrop-blur">
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+                        <Shield className="w-7 h-7 text-primary" />
                       </div>
                       <div>
-                        <p className="font-semibold text-sm">Seguridad</p>
-                        <p className="text-xs text-muted-foreground">Protegido con blockchain</p>
+                        <p className="font-semibold text-base mb-1">Seguridad</p>
+                        <p className="text-sm text-muted-foreground">Protegido con blockchain</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center">
-                        <Check className="w-6 h-6 text-accent" />
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-xl bg-accent/20 flex items-center justify-center flex-shrink-0">
+                        <Check className="w-7 h-7 text-accent" />
                       </div>
                       <div>
-                        <p className="font-semibold text-sm">Verificación</p>
-                        <p className="text-xs text-muted-foreground">Validación instantánea</p>
+                        <p className="font-semibold text-base mb-1">Verificación</p>
+                        <p className="text-sm text-muted-foreground">Validación instantánea</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-warning/20 flex items-center justify-center">
-                        <Zap className="w-6 h-6 text-warning" />
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-xl bg-warning/20 flex items-center justify-center flex-shrink-0">
+                        <Zap className="w-7 h-7 text-warning" />
                       </div>
                       <div>
-                        <p className="font-semibold text-sm">Rapidez</p>
-                        <p className="text-xs text-muted-foreground">Procesamiento inmediato</p>
+                        <p className="font-semibold text-base mb-1">Rapidez</p>
+                        <p className="text-sm text-muted-foreground">Procesamiento inmediato</p>
                       </div>
                     </div>
                   </div>
@@ -236,104 +233,46 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 px-6">
+      {/* Contact Section */}
+      <section id="contact" className="py-20 px-6 border-t border-border bg-gradient-to-b from-background to-card/30">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-4xl md:text-5xl font-bold mb-6 text-balance">Transforma tu proceso de documentación</h2>
+          <h2 className="text-4xl md:text-5xl font-bold mb-6">Contacto</h2>
           <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Únete a instituciones que ya confían en Verifica para mantener la integridad y seguridad de sus documentos.
+            ¿Tienes preguntas o necesitas más información? Contáctanos a través de nuestras redes sociales y te responderemos a la brevedad.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button onClick={() => login()} size="lg" className="rounded-full font-semibold">
-              Comenzar Ahora
-            </Button>
-            <Button variant="outline" size="lg" className="rounded-full font-semibold bg-transparent">
-              Contactar Ventas
+          <div className="flex justify-center">
+            <Button
+              asChild
+              size="lg"
+              className="rounded-full font-semibold"
+            >
+              <a
+                href="https://x.com/IanClavely"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2"
+              >
+                <MessageCircle className="w-5 h-5" />
+                Contáctanos en X (@IanClavely)
+              </a>
             </Button>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border bg-card/50 py-12 px-6">
+      <footer className="border-t border-border bg-card/50 py-8 px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <div className="flex items-center gap-2 font-bold mb-4">
-                <div className="w-6 h-6 rounded-lg bg-primary flex items-center justify-center">
-                  <FileCheck className="w-4 h-4 text-primary-foreground" />
-                </div>
-                <span>Verifica</span>
-              </div>
-              <p className="text-sm text-muted-foreground">Transparencia institucional con blockchain</p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4 text-sm">Producto</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>
-                  <a href="#" className="hover:text-primary transition-colors">
-                    Características
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-primary transition-colors">
-                    Precios
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-primary transition-colors">
-                    Seguridad
-                  </a>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4 text-sm">Empresa</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>
-                  <a href="#" className="hover:text-primary transition-colors">
-                    Acerca de
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-primary transition-colors">
-                    Blog
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-primary transition-colors">
-                    Contacto
-                  </a>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4 text-sm">Legal</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>
-                  <a href="#" className="hover:text-primary transition-colors">
-                    Privacidad
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-primary transition-colors">
-                    Términos
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-border pt-8 flex flex-col md:flex-row items-center justify-between text-sm text-muted-foreground">
+          <div className="flex flex-col md:flex-row items-center justify-between text-sm text-muted-foreground">
             <p>&copy; 2025 Verifica. Todos los derechos reservados.</p>
-            <div className="flex gap-6 mt-4 md:mt-0">
-              <a href="#" className="hover:text-primary transition-colors">
-                Twitter
-              </a>
-              <a href="#" className="hover:text-primary transition-colors">
-                LinkedIn
-              </a>
-              <a href="#" className="hover:text-primary transition-colors">
-                GitHub
+            <div className="mt-4 md:mt-0">
+              <a 
+                href="https://x.com/IanClavely" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:text-primary transition-colors"
+              >
+                X (@IanClavely)
               </a>
             </div>
           </div>

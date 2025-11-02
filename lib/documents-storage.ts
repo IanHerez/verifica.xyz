@@ -199,3 +199,22 @@ export function deleteDocument(documentId: string): boolean {
   }
 }
 
+/**
+ * Limpia todos los documentos del almacenamiento
+ * Útil para resetear la cache cuando los archivos fueron eliminados de Pinata
+ */
+export function clearAllDocuments(): void {
+  try {
+    // En servidor: limpia memoria
+    if (typeof window === "undefined") {
+      memoryStorage = {}
+      return
+    }
+
+    // En cliente: limpia localStorage
+    localStorage.removeItem(STORAGE_KEY)
+  } catch (error) {
+    console.error("[documents-storage] Error al limpiar documentos:", error)
+  }
+}
+

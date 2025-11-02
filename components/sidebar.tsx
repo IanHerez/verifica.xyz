@@ -11,7 +11,6 @@ import {
   BookOpen,
   Network,
   CreditCard,
-  Settings,
   LogOut,
   Users,
   FileCheck,
@@ -54,11 +53,6 @@ export function Sidebar() {
   const handleLogout = () => {
     logout()
     router.push("/")
-  }
-
-  const handleSettings = () => {
-    // Por ahora redirige a una página de configuración (puedes crear una después)
-    alert("Página de configuración próximamente")
   }
 
   // Determinar items de navegación según el rol
@@ -124,14 +118,7 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-sidebar-border space-y-2">
-        <button
-          onClick={handleSettings}
-          className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
-        >
-          <Settings className="w-5 h-5" />
-          <span className="text-sm font-medium">Configuración</span>
-        </button>
+      <div className="p-4 border-t border-sidebar-border">
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors hover:text-destructive"
