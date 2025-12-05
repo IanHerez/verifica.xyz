@@ -412,6 +412,9 @@ function DocumentsContent() {
   )
 }
 
+// Marcar como dinámica para evitar prerender
+export const dynamic = 'force-dynamic'
+
 export default function DocumentsPage() {
   return (
     <Suspense fallback={

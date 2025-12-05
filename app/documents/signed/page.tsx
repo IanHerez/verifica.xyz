@@ -330,6 +330,9 @@ function SignedDocumentsContent() {
   )
 }
 
+// Marcar como dinámica para evitar prerender
+export const dynamic = 'force-dynamic'
+
 export default function SignedDocumentsPage() {
   return (
     <Suspense fallback={
