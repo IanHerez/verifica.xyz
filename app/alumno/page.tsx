@@ -191,19 +191,48 @@ export default function AlumnoPage() {
 
     setSigning(doc.id)
     try {
+      let blockchainSigned = false
+      
       // Paso 1: Firmar en blockchain si el documento está registrado y la chain está soportada
       if (chainSupported && doc.blockchainTxHash && doc.files?.[0]?.hash) {
         try {
           const documentHash = hashToBytes32(doc.files[0].hash)
           await signOnBlockchain(documentHash)
+          blockchainSigned = true
           toast.success("Documento firmado en blockchain")
-        } catch (blockchainError) {
-          // No bloquear si falla blockchain, continuar con firma en BD
+        } catch (blockchainError: any) {
+          // Verificar si el usuario canceló la transacción
+          const errorMessage = blockchainError?.message || String(blockchainError || "")
+          const errorCode = blockchainError?.code || blockchainError?.error?.code
+          
+          // Códigos de error comunes cuando el usuario cancela:
+          // 4001: User rejected the request (MetaMask)
+          // "ACTION_REJECTED": WalletConnect
+          // "user rejected": Mensaje común
+          const isUserRejection = 
+            errorCode === 4001 ||
+            errorCode === "4001" ||
+            errorMessage.toLowerCase().includes("user rejected") ||
+            errorMessage.toLowerCase().includes("rejected") ||
+            errorMessage.toLowerCase().includes("denied") ||
+            errorMessage.toLowerCase().includes("cancelled") ||
+            errorMessage.toLowerCase().includes("canceled")
+          
+          if (isUserRejection) {
+            // Usuario canceló la transacción - NO continuar con firma en BD
+            console.log("[Sign] Usuario canceló la firma en blockchain")
+            toast.error("Firma cancelada. El documento no ha sido firmado.")
+            return // Salir sin firmar en BD
+          }
+          
+          // Otro tipo de error (red, contrato, etc.) - continuar con BD pero advertir
           console.warn("[Sign] Error firmando en blockchain (continuando con BD):", blockchainError)
+          toast.warning("Error al firmar en blockchain, pero se intentará firmar en base de datos")
         }
       }
 
       // Paso 2: Siempre firmar en base de datos (obligatorio)
+      // Solo si no fue cancelado por el usuario
       const success = await signDocAPI(doc.id, walletAddress)
       if (success) {
         toast.success(`Documento "${doc.title}" firmado exitosamente`)

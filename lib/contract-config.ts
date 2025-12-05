@@ -1,7 +1,8 @@
 /**
  * Configuración de contratos inteligentes por chain
  * 
- * Define las direcciones de los contratos según la red (Arbitrum Sepolia, Scroll Sepolia)
+ * Define las direcciones de los contratos según la red
+ * Actualmente solo Scroll Sepolia está soportado
  */
 
 export interface ChainConfig {
@@ -14,20 +15,10 @@ export interface ChainConfig {
 
 /**
  * Configuraciones de chains soportadas
+ * Solo Scroll Sepolia está configurado actualmente
  */
 export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
-  // Arbitrum Sepolia
-  421614: {
-    chainId: 421614,
-    name: "Arbitrum Sepolia",
-    rpcUrl: "https://sepolia-rollup.arbitrum.io/rpc",
-    blockExplorer: "https://sepolia.arbiscan.io",
-    contractAddress:
-      typeof window !== "undefined"
-        ? process.env.NEXT_PUBLIC_ARBITRUM_SEPOLIA_CONTRACT
-        : undefined,
-  },
-  // Scroll Sepolia
+  // Scroll Sepolia (única chain soportada)
   534351: {
     chainId: 534351,
     name: "Scroll Sepolia",

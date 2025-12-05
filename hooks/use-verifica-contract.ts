@@ -77,15 +77,13 @@ export function useVerificaContract() {
             chainId: chainCheck.chainId,
             configName: config?.name,
             contractAddress,
-            envVar: chainCheck.chainId === 421614 
-              ? process.env.NEXT_PUBLIC_ARBITRUM_SEPOLIA_CONTRACT 
-              : process.env.NEXT_PUBLIC_SCROLL_SEPOLIA_CONTRACT,
+            envVar: process.env.NEXT_PUBLIC_SCROLL_SEPOLIA_CONTRACT,
           })
           
           throw new Error(
             config
               ? `Chain ${config.name} (${chainCheck.chainId}) no tiene contrato configurado. Configura NEXT_PUBLIC_${config.name.toUpperCase().replace(/\s/g, "_")}_CONTRACT en .env`
-              : `Chain ${chainCheck.chainId || "desconocida"} no está soportada. Usa Arbitrum Sepolia (421614) o Scroll Sepolia (534351)`
+              : `Chain ${chainCheck.chainId || "desconocida"} no está soportada. Solo Scroll Sepolia (534351) está soportado actualmente. Cambia a Scroll Sepolia en tu wallet.`
           )
         }
 
